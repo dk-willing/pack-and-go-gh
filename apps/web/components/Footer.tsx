@@ -16,20 +16,44 @@ export function Footer() {
         </div>
 
         <div>
-          <p className="text-sm font-medium text-paper">Company</p>
+          <p className="text-[17px] font-bold text-paper">Company</p>
           <ul className="mt-3 space-y-2 text-sm">
-            <li><Link href="/about">About</Link></li>
-            <li><Link href="/services">Services</Link></li>
-            <li><Link href="/how-it-works">How it works</Link></li>
-            <li><Link href="/contact">Contact</Link></li>
+            <li>
+              <Link href="/about" className="text-paper">
+                About
+              </Link>
+            </li>
+            <li>
+              <Link href="/services" className="text-paper">
+                Services
+              </Link>
+            </li>
+            <li>
+              <Link href="/how-it-works" className="text-paper">
+                How it works
+              </Link>
+            </li>
+            <li>
+              <Link href="/contact" className="text-paper">
+                Contact
+              </Link>
+            </li>
           </ul>
         </div>
 
         <div>
-          <p className="text-sm font-medium text-paper">Get started</p>
+          <p className="text-[17px] font-bold text-paper">Get started</p>
           <ul className="mt-3 space-y-2 text-sm">
-            <li><Link href="/request-delivery">Request a delivery</Link></li>
-            <li><Link href="/track">Track a shipment</Link></li>
+            <li>
+              <Link href="/request-delivery" className="text-paper">
+                Request a delivery
+              </Link>
+            </li>
+            <li>
+              <Link href="/track" className="text-paper">
+                Track a shipment
+              </Link>
+            </li>
           </ul>
         </div>
       </Container>

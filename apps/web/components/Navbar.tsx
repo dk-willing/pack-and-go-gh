@@ -14,7 +14,10 @@ export function Navbar() {
   return (
     <header className="border-b border-navy-950/10 bg-paper/95 backdrop-blur">
       <Container className="flex h-20 items-center justify-between">
-        <Link href="/" className="font-display text-xl font-semibold text-navy-950">
+        <Link
+          href="/"
+          className="font-display text-xl font-semibold text-navy-950 tracking-tighter"
+        >
           Pack &amp; Go <span className="text-route">GH</span>
         </Link>
 
