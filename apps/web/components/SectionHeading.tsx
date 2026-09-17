@@ -15,10 +15,18 @@ export function SectionHeading({
   align?: "left" | "center";
 }) {
   return (
-    <div className={align === "center" ? "text-center mx-auto max-w-2xl" : "max-w-xl"}>
-      <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight">{title}</h2>
+    <div
+      className={
+        align === "center" ? "text-center mx-auto max-w-2xl" : "max-w-xl"
+      }
+    >
+      <h2 className="text-lg sm:text-4xl font-semibold tracking-tight">
+        {title}
+      </h2>
       {description ? (
-        <p className="mt-4 text-ink-muted text-lg leading-relaxed">{description}</p>
+        <p className="mt-4 text-ink-muted sm:text-lg leading-relaxed text-sm">
+          {description}
+        </p>
       ) : null}
     </div>
   );
