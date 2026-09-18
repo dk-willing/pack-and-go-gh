@@ -3,8 +3,8 @@ import { env } from "../config/env";
 import { ApiError } from "../utils/ApiError";
 import { sendSuccess } from "../utils/ApiResponse";
 import { asyncHandler } from "../utils/asyncHandler";
-import { changePasswordSchema, loginSchema, registerSchema } from "../validators/auth.validator";
-import { authenticateUser, changeUserPassword, getSafeUser, refreshAuthentication, registerUser, revokeSession } from "../services/auth.service";
+import { changePasswordSchema, createAdminSchema, loginSchema, registerSchema } from "../validators/auth.validator";
+import { authenticateUser, changeUserPassword, createAdminUser, getSafeUser, refreshAuthentication, registerUser, revokeSession } from "../services/auth.service";
 
 const accessCookie = { httpOnly: true, secure: env.NODE_ENV === "production", sameSite: "lax" as const, path: "/" };
 const refreshCookie = { ...accessCookie, path: "/api/v1/auth" };
@@ -31,6 +31,12 @@ export const register = asyncHandler(async (req, res) => {
   const input = parse(registerSchema, req.body);
   const user = await registerUser(input);
   sendSuccess(res, 201, "Registration successful", { user });
+});
+
+export const createAdmin = asyncHandler(async (req, res) => {
+  const input = parse(createAdminSchema, req.body);
+  const user = await createAdminUser(input);
+  sendSuccess(res, 201, "Admin account created successfully", { user });
 });
 
 export const login = asyncHandler(async (req, res) => {

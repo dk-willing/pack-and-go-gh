@@ -6,6 +6,7 @@ import { SectionHeading } from "@/components/SectionHeading";
 import { Label, Input } from "@/components/Field";
 import { Button } from "@/components/Button";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useToast } from "@/components/ToastProvider";
 import { ApiRequestError, deliveryRequestApi } from "@/lib/apiClient";
 import { UserRole } from "@pack-and-go/types";
 
@@ -66,7 +67,7 @@ export default function TrackPage() {
     typeof MOCK_SHIPMENT | null
   >(null);
   const [hasSearched, setHasSearched] = useState(false);
-  const [error, setError] = useState("");
+  const { showToast } = useToast();
 
   useEffect(() => {
     const trackingNumber = new URLSearchParams(window.location.search).get(
@@ -78,7 +79,6 @@ export default function TrackPage() {
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
     setHasSearched(true);
-    setError("");
     if (!query.trim()) {
       setActiveShipment(null);
       return;
@@ -183,10 +183,11 @@ export default function TrackPage() {
       });
     } catch (reason) {
       setActiveShipment(null);
-      setError(
+      showToast(
         reason instanceof ApiRequestError
           ? reason.message
           : "Unable to retrieve tracking information.",
+        "error",
       );
     }
   };
@@ -235,15 +236,6 @@ export default function TrackPage() {
               </Button>
             </div>
           </form>
-
-          {error && (
-            <p
-              role="alert"
-              className="mx-auto mt-4 max-w-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-            >
-              {error}
-            </p>
-          )}
 
           {/* Active Tracking Results Display */}
           {activeShipment && (

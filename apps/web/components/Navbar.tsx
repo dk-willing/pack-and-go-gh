@@ -1,13 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, LogOut } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  Bell,
+  ChevronDown,
+  LayoutDashboard,
+  LogOut,
+  MapPin,
+  PackageSearch,
+  Truck,
+  UserPlus,
+  UserRound,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { Container } from "./Container";
 import { Button } from "./Button";
 import { useAuth } from "./AuthProvider";
 import { UserRole } from "@pack-and-go/types";
 import { notificationApi, type CustomerNotification } from "@/lib/apiClient";
+import { AdminCreationModal } from "./AdminCreationModal";
 
 const links = [
   { href: "/services", label: "Services" },
@@ -23,6 +34,10 @@ export function Navbar() {
   );
   const [unreadCount, setUnreadCount] = useState(0);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const notificationBellRef = useRef<HTMLButtonElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const userInitials = user
     ? user.name
         .trim()
@@ -64,6 +79,29 @@ export function Navbar() {
     };
   }, [isCustomer]);
 
+  useEffect(() => {
+    const closeMenus = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (
+        isNotificationsOpen &&
+        notificationBellRef.current &&
+        !notificationBellRef.current.contains(target)
+      ) {
+        setIsNotificationsOpen(false);
+      }
+      if (
+        isUserMenuOpen &&
+        userMenuRef.current &&
+        !userMenuRef.current.contains(target)
+      ) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeMenus);
+    return () => document.removeEventListener("pointerdown", closeMenus);
+  }, [isNotificationsOpen, isUserMenuOpen]);
+
   const markNotificationRead = async (notification: CustomerNotification) => {
     if (notification.readAt) return;
     try {
@@ -104,32 +142,6 @@ export function Navbar() {
         <div className="flex items-center gap-3">
           {!isLoading && user ? (
             <>
-              {isCustomer && (
-                <Button
-                  href="/dashboard"
-                  variant="ghost"
-                  className="hidden md:inline-flex"
-                >
-                  Dashboard
-                </Button>
-              )}
-              {isCustomer && (
-                <Button
-                  href="/track"
-                  variant="ghost"
-                  className="hidden lg:inline-flex"
-                >
-                  Track shipment
-                </Button>
-              )}
-              {isCustomer && (
-                <Button
-                  href="/request-delivery"
-                  className="hidden sm:inline-flex"
-                >
-                  Request delivery
-                </Button>
-              )}
               {[UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(user.role) && (
                 <Button
                   href="/admin"
@@ -142,6 +154,7 @@ export function Navbar() {
               {isCustomer && (
                 <div className="relative">
                   <button
+                    ref={notificationBellRef}
                     type="button"
                     onClick={() => setIsNotificationsOpen((open) => !open)}
                     aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
@@ -157,7 +170,7 @@ export function Navbar() {
                     )}
                   </button>
                   {isNotificationsOpen && (
-                    <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-navy-950/10 bg-white shadow-xl">
+                    <div className="fixed inset-x-4 top-24 z-50 max-h-[calc(100vh-7rem)] overflow-hidden rounded-xl border border-navy-950/10 bg-white shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:max-h-none sm:w-[22rem]">
                       <div className="flex items-center justify-between border-b border-navy-950/10 px-4 py-3">
                         <div>
                           <p className="font-semibold text-navy-950">
@@ -171,7 +184,7 @@ export function Navbar() {
                           {unreadCount} unread
                         </span>
                       </div>
-                      <div className="max-h-80 overflow-y-auto">
+                      <div className="max-h-[min(20rem,calc(100vh-14rem))] overflow-y-auto sm:max-h-80">
                         {notifications.length === 0 ? (
                           <p className="px-4 py-8 text-center text-sm text-ink-muted">
                             No notifications yet.
@@ -190,11 +203,11 @@ export function Navbar() {
                                 <span
                                   className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${notification.readAt ? "bg-navy-950/15" : "bg-route"}`}
                                 />
-                                <span>
-                                  <span className="block text-sm font-semibold text-navy-950">
+                                <span className="min-w-0">
+                                  <span className="block break-words text-sm font-semibold text-navy-950">
                                     {notification.title}
                                   </span>
-                                  <span className="mt-0.5 block text-xs leading-5 text-ink-muted">
+                                  <span className="mt-0.5 block break-words text-xs leading-5 text-ink-muted">
                                     {notification.message}
                                   </span>
                                 </span>
@@ -204,7 +217,7 @@ export function Navbar() {
                         )}
                       </div>
                       <Link
-                        href="/dashboard"
+                        href="/notifications"
                         onClick={() => setIsNotificationsOpen(false)}
                         className="block border-t border-navy-950/10 px-4 py-3 text-center text-xs font-semibold text-navy-950 hover:bg-paper"
                       >
@@ -214,23 +227,133 @@ export function Navbar() {
                   )}
                 </div>
               )}
-              <Link
-                href="/account"
-                title={`${user.name} account`}
-                aria-label={`${user.name} account`}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-navy-950 text-xs font-semibold text-paper"
-              >
-                {userInitials}
-              </Link>
-              <Button
-                variant="secondary"
-                onClick={() => void logout()}
-                aria-label="Sign out"
-                title="Sign out"
-                className="h-10 w-10 !p-0"
-              >
-                <LogOut aria-hidden="true" className="h-4 w-4" />
-              </Button>
+              <div ref={userMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsUserMenuOpen((open) => !open)}
+                  aria-label={`${user.name} account menu`}
+                  aria-expanded={isUserMenuOpen}
+                  className="flex items-center gap-2 rounded-full border border-navy-950/10 bg-white p-1 pr-2 text-navy-950 hover:border-navy-950/25"
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-navy-950 text-xs font-semibold text-paper">
+                    {userInitials}
+                  </span>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={`h-4 w-4 transition-transform ${isUserMenuOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {isUserMenuOpen && (
+                  <div className="absolute right-0 top-12 z-50 w-64 overflow-hidden rounded-xl border border-navy-950/10 bg-white shadow-xl">
+                    <div className="border-b border-navy-950/10 px-4 py-3">
+                      <p className="font-semibold text-navy-950">{user.name}</p>
+                      <p className="truncate text-xs text-ink-muted">
+                        {user.email}
+                      </p>
+                    </div>
+                    <div className="p-2">
+                      {isCustomer && (
+                        <>
+                          <Link
+                            href="/dashboard"
+                            onClick={() => setIsUserMenuOpen(false)}
+                            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-navy-950 hover:bg-paper"
+                          >
+                            <LayoutDashboard
+                              aria-hidden="true"
+                              className="h-4 w-4 text-ink-muted"
+                            />
+                            Dashboard
+                          </Link>
+                          <Link
+                            href="/track"
+                            onClick={() => setIsUserMenuOpen(false)}
+                            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-navy-950 hover:bg-paper"
+                          >
+                            <PackageSearch
+                              aria-hidden="true"
+                              className="h-4 w-4 text-ink-muted"
+                            />
+                            Track shipment
+                          </Link>
+                          <Link
+                            href="/request-delivery"
+                            onClick={() => setIsUserMenuOpen(false)}
+                            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-navy-950 hover:bg-paper"
+                          >
+                            <Truck
+                              aria-hidden="true"
+                              className="h-4 w-4 text-ink-muted"
+                            />
+                            Request delivery
+                          </Link>
+                        </>
+                      )}
+                      {isCustomer && (
+                        <Link
+                          href="/account"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-navy-950 hover:bg-paper"
+                        >
+                          <MapPin
+                            aria-hidden="true"
+                            className="h-4 w-4 text-ink-muted"
+                          />
+                          Profile &amp; saved locations
+                        </Link>
+                      )}
+                      {[UserRole.ADMIN, UserRole.SUPER_ADMIN].includes(
+                        user.role,
+                      ) && (
+                        <>
+                          <Link
+                            href="/admin"
+                            onClick={() => setIsUserMenuOpen(false)}
+                            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-navy-950 hover:bg-paper"
+                          >
+                            <UserRound
+                              aria-hidden="true"
+                              className="h-4 w-4 text-ink-muted"
+                            />
+                            Admin console
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              setIsAdminModalOpen(true);
+                            }}
+                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-navy-950 hover:bg-paper"
+                          >
+                            <UserPlus
+                              aria-hidden="true"
+                              className="h-4 w-4 text-ink-muted"
+                            />
+                            Add admin
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    <div className="border-t border-navy-950/10 p-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          void logout();
+                        }}
+                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-red-700 hover:bg-red-50"
+                      >
+                        <LogOut aria-hidden="true" className="h-4 w-4" />
+                        Sign out
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <AdminCreationModal
+                open={isAdminModalOpen}
+                onClose={() => setIsAdminModalOpen(false)}
+              />
             </>
           ) : (
             <>

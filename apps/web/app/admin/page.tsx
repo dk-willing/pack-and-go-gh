@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { Container } from "@/components/Container";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useToast } from "@/components/ToastProvider";
 import {
   ApiRequestError,
   deliveryRequestApi,
@@ -43,7 +44,7 @@ export default function AdminPage() {
   const [selected, setSelected] = useState<AdminDeliveryRequest | null>(null);
   const [status, setStatus] = useState<DeliveryStatus | "">("");
   const [search, setSearch] = useState("");
-  const [error, setError] = useState("");
+  const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [quoteAmount, setQuoteAmount] = useState("");
@@ -70,17 +71,17 @@ export default function AdminPage() {
             null)
           : null,
       );
-      setError("");
     } catch (reason) {
-      setError(
+      showToast(
         reason instanceof ApiRequestError
           ? reason.message
           : "Unable to load customer requests.",
+        "error",
       );
     } finally {
       setIsLoading(false);
     }
-  }, [search, status]);
+  }, [search, showToast, status]);
 
   useEffect(() => {
     void loadRequests();
@@ -97,10 +98,11 @@ export default function AdminPage() {
       setSelected(result.request);
       await loadRequests();
     } catch (reason) {
-      setError(
+      showToast(
         reason instanceof ApiRequestError
           ? reason.message
           : "Unable to update request status.",
+        "error",
       );
     } finally {
       setIsUpdating(false);
@@ -118,10 +120,11 @@ export default function AdminPage() {
       setSelected(result.request);
       await loadRequests();
     } catch (reason) {
-      setError(
+      showToast(
         reason instanceof ApiRequestError
           ? reason.message
           : "Unable to create quote.",
+        "error",
       );
     } finally {
       setIsUpdating(false);
@@ -147,10 +150,11 @@ export default function AdminPage() {
       setSelected(result.request);
       await loadRequests();
     } catch (reason) {
-      setError(
+      showToast(
         reason instanceof ApiRequestError
           ? reason.message
           : "Unable to process shipment.",
+        "error",
       );
     } finally {
       setIsUpdating(false);
@@ -165,10 +169,11 @@ export default function AdminPage() {
       setSelected(result.request);
       await loadRequests();
     } catch (reason) {
-      setError(
+      showToast(
         reason instanceof ApiRequestError
           ? reason.message
           : "Unable to dispatch shipment.",
+        "error",
       );
     } finally {
       setIsUpdating(false);
@@ -221,14 +226,6 @@ export default function AdminPage() {
           </select>
           <Button type="submit">Search</Button>
         </form>
-        {error && (
-          <p
-            role="alert"
-            className="mt-6 border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-          >
-            {error}
-          </p>
-        )}
         <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
           <section className="overflow-hidden rounded-2xl border border-navy-950/10 bg-white">
             {isLoading ? (

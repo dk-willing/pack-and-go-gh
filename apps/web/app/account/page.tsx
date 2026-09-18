@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/Button";
 import { Container } from "@/components/Container";
 import { Input, Label, Select } from "@/components/Field";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useToast } from "@/components/ToastProvider";
 import {
   ApiRequestError,
   customerApi,
@@ -12,6 +13,7 @@ import {
   type SavedLocation,
 } from "@/lib/apiClient";
 import { GHANA_LOCATIONS, GHANA_REGIONS } from "@/lib/ghanaLocations";
+import { UserRole } from "@pack-and-go/types";
 
 const blankLocation = {
   label: "",
@@ -21,85 +23,91 @@ const blankLocation = {
   address: "",
   instructions: "",
 };
+const customerRoles = [UserRole.CUSTOMER, UserRole.BUSINESS_CUSTOMER];
 
 export default function AccountPage() {
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [phone, setPhone] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [location, setLocation] = useState(blankLocation);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const { showToast } = useToast();
 
-  const load = () =>
-    customerApi
-      .getProfile()
-      .then((result) => {
-        setProfile(result);
-        setPhone(result.customer.phone ?? "");
-        setCompanyName(result.customer.companyName ?? "");
-      })
-      .catch((reason) =>
-        setError(
-          reason instanceof Error
-            ? reason.message
-            : "Unable to load your account.",
+  const load = useCallback(
+    () =>
+      customerApi
+        .getProfile()
+        .then((result) => {
+          setProfile(result);
+          setPhone(result.customer.phone ?? "");
+          setCompanyName(result.customer.companyName ?? "");
+        })
+        .catch((reason) =>
+          showToast(
+            reason instanceof Error
+              ? reason.message
+              : "Unable to load your account.",
+            "error",
+          ),
         ),
-      );
+    [showToast],
+  );
+
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   const saveProfile = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError("");
-    setMessage("");
     try {
       await customerApi.updateProfile({
         phone,
         companyName: companyName || undefined,
       });
-      setMessage("Profile updated.");
+      showToast("Profile updated.");
     } catch (reason) {
-      setError(
+      showToast(
         reason instanceof ApiRequestError
           ? reason.message
           : "Unable to update profile.",
+        "error",
       );
     }
   };
+
   const saveLocation = async (event: React.FormEvent) => {
     event.preventDefault();
-    setError("");
-    setMessage("");
     try {
       await customerApi.createLocation(location);
       setLocation(blankLocation);
       await load();
-      setMessage("Saved location added.");
+      showToast("Saved location added.");
     } catch (reason) {
-      setError(
+      showToast(
         reason instanceof ApiRequestError
           ? reason.message
           : "Unable to save location.",
+        "error",
       );
     }
   };
+
   const removeLocation = async (saved: SavedLocation) => {
     try {
       await customerApi.deleteLocation(saved._id);
       await load();
-      setMessage("Saved location removed.");
+      showToast("Saved location removed.");
     } catch (reason) {
-      setError(
+      showToast(
         reason instanceof ApiRequestError
           ? reason.message
           : "Unable to remove location.",
+        "error",
       );
     }
   };
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute roles={customerRoles}>
       <Container className="py-14 sm:py-20">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-route">
           Account
@@ -107,22 +115,6 @@ export default function AccountPage() {
         <h1 className="mt-3 text-4xl font-semibold">
           Profile and saved locations
         </h1>
-        {error && (
-          <p
-            role="alert"
-            className="mt-6 border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-          >
-            {error}
-          </p>
-        )}
-        {message && (
-          <p
-            role="status"
-            className="mt-6 border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
-          >
-            {message}
-          </p>
-        )}
         <div className="mt-10 grid gap-8 lg:grid-cols-2">
           <form
             onSubmit={saveProfile}

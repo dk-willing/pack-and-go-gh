@@ -123,3 +123,12 @@ export async function getSafeUser(userId: string) {
   if (!user || !user.isActive) throw ApiError.unauthorized("Authentication required");
   return safeUser(user);
 }
+
+export async function createAdminUser(input: { name: string; email: string; password: string }) {
+  const existing = await User.exists({ email: input.email });
+  if (existing) throw ApiError.conflict("An account with this email already exists");
+
+  const password = await bcrypt.hash(input.password, PASSWORD_ROUNDS);
+  const user = await User.create({ ...input, password, role: UserRole.ADMIN });
+  return safeUser(user);
+}

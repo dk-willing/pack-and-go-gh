@@ -5,6 +5,7 @@ import { Button } from "@/components/Button";
 import { Container } from "@/components/Container";
 import { Input, Label, Select, Textarea } from "@/components/Field";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useToast } from "@/components/ToastProvider";
 import {
   ApiRequestError,
   customerApi,
@@ -124,7 +125,7 @@ export default function RequestDeliveryPage() {
   const [specialInstructions, setSpecialInstructions] = useState("");
   const [notes, setNotes] = useState("");
   const [locations, setLocations] = useState<SavedLocation[]>([]);
-  const [error, setError] = useState("");
+  const { showToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdRequest, setCreatedRequest] = useState<{
     requestNumber: string;
@@ -300,22 +301,21 @@ export default function RequestDeliveryPage() {
 
   const next = () => {
     const message = validateStep(step);
-    setError(message);
-    if (!message) setStep((current) => Math.min(4, current + 1));
+    if (message) showToast(message, "error");
+    else setStep((current) => Math.min(4, current + 1));
   };
 
   const submit = async () => {
     for (let s = 1; s <= 3; s++) {
       const message = validateStep(s);
       if (message) {
-        setError(message);
+        showToast(message, "error");
         setStep(s);
         return;
       }
     }
 
     setIsSubmitting(true);
-    setError("");
 
     try {
       const formattedCargo = cargoItems.map((item) => ({
@@ -368,9 +368,12 @@ export default function RequestDeliveryPage() {
               )
               .join(" ")
           : "";
-        setError(details ? `${reason.message} ${details}` : reason.message);
+        showToast(
+          details ? `${reason.message} ${details}` : reason.message,
+          "error",
+        );
       } else {
-        setError("Unable to submit the request.");
+        showToast("Unable to submit the request.", "error");
       }
     } finally {
       setIsSubmitting(false);
@@ -545,14 +548,6 @@ export default function RequestDeliveryPage() {
                   ),
                 )}
               </div>
-              {error && (
-                <p
-                  role="alert"
-                  className="mb-6 border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-                >
-                  {error}
-                </p>
-              )}
               {step === 1 &&
                 renderLocation(
                   "pickup",

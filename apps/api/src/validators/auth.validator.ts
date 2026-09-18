@@ -20,3 +20,5 @@ export const changePasswordSchema = z.object({
   message: "New password must be different from current password",
   path: ["newPassword"],
 });
+
+export const createAdminSchema = registerSchema;

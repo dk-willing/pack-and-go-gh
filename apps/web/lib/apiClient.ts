@@ -94,6 +94,17 @@ export const healthApi = {
   check: () => apiClient.get<{ status: string; timestamp: string }>("/health"),
 };
 
+export interface PlatformStats {
+  regionsCovered: number;
+  shipmentsCompleted: number;
+  onTimeDeliveryRate: number | null;
+  trackingAvailable: boolean;
+}
+
+export const statsApi = {
+  get: () => apiClient.get<PlatformStats>("/stats"),
+};
+
 export interface AuthUser {
   id: string;
   name: string;
@@ -107,6 +118,8 @@ export interface AuthUser {
 export const authApi = {
   register: (input: { name: string; email: string; password: string }) =>
     apiClient.post<{ user: AuthUser }>("/auth/register", input),
+  createAdmin: (input: { name: string; email: string; password: string }) =>
+    apiClient.post<{ user: AuthUser }>("/auth/admin-users", input),
   login: (input: { email: string; password: string }) =>
     apiClient.post<{ user: AuthUser }>("/auth/login", input),
   logout: () => apiClient.post<{}>("/auth/logout"),

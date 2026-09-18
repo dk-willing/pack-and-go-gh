@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Container } from "@/components/Container";
 import { Button } from "@/components/Button";
 import { SectionHeading } from "@/components/SectionHeading";
 import Map from "@/components/Map";
 import { RouteStepper } from "@/components/RouteStepper";
+import { statsApi, type PlatformStats } from "@/lib/apiClient";
 
 const cargoCategories = [
   {
@@ -137,13 +138,6 @@ const lifecycleStages = [
   },
 ];
 
-const platformStats = [
-  { value: "16", label: "Regions Covered Across Ghana" },
-  { value: "99.4%", label: "On-Time Delivery Rate" },
-  { value: "10,000+", label: "Shipments Completed" },
-  { value: "24/7", label: "Real-Time GPS Tracking" },
-];
-
 const logisticsExperts = [
   {
     name: "Kofi Mensah",
@@ -195,6 +189,52 @@ const faqs = [
 
 export default function HomePage() {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+  const [platformStats, setPlatformStats] = useState<PlatformStats | null>(
+    null,
+  );
+
+  useEffect(() => {
+    let isActive = true;
+    const loadStats = async () => {
+      try {
+        const result = await statsApi.get();
+        if (isActive) setPlatformStats(result);
+      } catch {
+        // Keep the metrics neutral when the public stats service is unavailable.
+      }
+    };
+
+    void loadStats();
+    const interval = window.setInterval(() => void loadStats(), 60000);
+    return () => {
+      isActive = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const metrics = [
+    {
+      value: 16,
+      label: "Regions Covered Across Ghana",
+    },
+    {
+      value:
+        platformStats?.onTimeDeliveryRate !== null && platformStats
+          ? `${platformStats.onTimeDeliveryRate}%`
+          : "—",
+      label: "On-Time Delivery Rate",
+    },
+    {
+      value: platformStats
+        ? platformStats.shipmentsCompleted.toLocaleString()
+        : "—",
+      label: "Shipments Completed",
+    },
+    {
+      value: platformStats?.trackingAvailable ? "24/7" : "—",
+      label: "Real-Time GPS Tracking",
+    },
+  ];
 
   return (
     <>
@@ -232,7 +272,7 @@ export default function HomePage() {
       <section className="border-b border-navy-950/10 bg-navy-950/5 py-10">
         <Container>
           <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
-            {platformStats.map((stat) => (
+            {metrics.map((stat) => (
               <div key={stat.label} className="text-center md:text-left">
                 <p className="font-display text-3xl font-bold text-navy-950">
                   {stat.value}
