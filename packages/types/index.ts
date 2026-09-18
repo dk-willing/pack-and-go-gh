@@ -35,11 +35,29 @@ export type ApiResponse<T = unknown> = ApiSuccessResponse<T> | ApiErrorResponse;
  * finer-grained roles (e.g. dispatcher, support-agent) are implemented.
  */
 export enum UserRole {
-  CUSTOMER = "customer",
-  DRIVER = "driver",
-  OPERATIONS = "operations",
-  ADMIN = "admin",
+  CUSTOMER = "CUSTOMER",
+  BUSINESS_CUSTOMER = "BUSINESS_CUSTOMER",
+  DRIVER = "DRIVER",
+  DISPATCHER = "DISPATCHER",
+  OPERATIONS_MANAGER = "OPERATIONS_MANAGER",
+  FINANCE = "FINANCE",
+  ADMIN = "ADMIN",
+  SUPER_ADMIN = "SUPER_ADMIN",
 }
+
+export type Permission =
+  | "users:read"
+  | "users:create"
+  | "users:update"
+  | "users:delete"
+  | "shipments:read"
+  | "shipments:create"
+  | "shipments:update"
+  | "quotes:create"
+  | "quotes:approve"
+  | "quotes:view"
+  | "payments:read"
+  | "payments:manage";
 
 // ---------------------------------------------------------------------------
 // Health check

@@ -1,0 +1,23 @@
+import { Router } from "express";
+import { UserRole } from "@pack-and-go/types";
+import { cancel, create, decide, getMine, listMine, patchMine, track, adminDispatch, adminGet, adminList, adminProcess, adminQuote, adminStatus, staff } from "../controllers/deliveryRequest.controller";
+import { requireAuth } from "../middleware/auth.middleware";
+import { requireRole } from "../middleware/role.middleware";
+
+const router = Router();
+const customers = [UserRole.CUSTOMER, UserRole.BUSINESS_CUSTOMER];
+router.use(requireAuth);
+router.post("/", requireRole(...customers), create);
+router.get("/", requireRole(...customers), listMine);
+router.get("/admin", requireRole(...staff), adminList);
+router.post("/admin/:id/quote", requireRole(...staff), adminQuote);
+router.post("/admin/:id/process", requireRole(...staff), adminProcess);
+router.post("/admin/:id/dispatch", requireRole(...staff), adminDispatch);
+router.patch("/admin/:id/status", requireRole(...staff), adminStatus);
+router.get("/admin/:id", requireRole(...staff), adminGet);
+router.get("/track/:trackingNumber", requireRole(...customers), track);
+router.get("/:id", requireRole(...customers), getMine);
+router.patch("/:id", requireRole(...customers), patchMine);
+router.post("/:id/cancel", requireRole(...customers), cancel);
+router.post("/:id/quote/decision", requireRole(...customers), decide);
+export default router;

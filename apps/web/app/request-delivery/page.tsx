@@ -1,710 +1,869 @@
 "use client";
 
-import { useState } from "react";
-import { Container } from "@/components/Container";
-import { Label, Input, Select, Textarea } from "@/components/Field";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { Button } from "@/components/Button";
+import { Container } from "@/components/Container";
+import { Input, Label, Select, Textarea } from "@/components/Field";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import {
+  ApiRequestError,
+  customerApi,
+  deliveryRequestApi,
+  type CargoCategory,
+  type ContactInput,
+  type LocationInput,
+  type SavedLocation,
+} from "@/lib/apiClient";
+import { GHANA_LOCATIONS, GHANA_REGIONS } from "@/lib/ghanaLocations";
+import { UserRole } from "@pack-and-go/types";
 
-// Regional locations data
-const REGIONAL_LOCATIONS: Record<string, string[]> = {
-  Ashanti: [
-    "Kumasi Central (Kejetia / Adum)",
-    "KNUST Campus / Ayeduase",
-    "Asokwa Industrial Area",
-    "Obuasi",
-    "Ejisu",
-    "Mampong",
-    "Offinso",
-    "Suame Magazine",
-  ],
-  "Greater Accra": [
-    "Accra Central / Ridge",
-    "Legon (UG Campus) / Madina",
-    "Tema Harbour & Industrial Zone",
-    "Spintex / East Legon",
-    "Kaneshie / Industrial Area",
-    "Kasoa (Border)",
-    "Adenta",
-    "Kotoka Airport Cargo Terminal",
-  ],
-  Western: [
-    "Takoradi Port Area",
-    "Sekondi",
-    "Tarkwa (Mining Zone)",
-    "Axim",
-    "Elubo (Border)",
-  ],
-  Central: [
-    "Cape Coast (UCC Campus)",
-    "Winneba",
-    "Mfantseman / Saltpond",
-    "Elmina",
-  ],
-  Eastern: ["Koforidua", "Nkawkaw", "Akosombo", "Suhum"],
-  Northern: ["Tamale Central / UDS Campus", "Yendi", "Savelugu"],
-  Bono: ["Sunyani", "Berekum", "Techiman (Market Hub)"],
-  Volta: ["Ho", "Aflao (Border)", "Kpando"],
-};
+const customerRoles = [UserRole.CUSTOMER, UserRole.BUSINESS_CUSTOMER];
 
-interface CustomCargoItem {
+export type ExtendedCargoCategory = CargoCategory | "STUDENT" | "";
+
+export interface CargoItemState {
   id: string;
+  preset: string;
   description: string;
   quantity: number;
-  weightOrSize: string;
+  weight: string;
+  dimensions: {
+    length: string;
+    width: string;
+    height: string;
+  };
+}
+
+const STUDENT_ITEM_PRESETS = [
+  "Hostel Trunk / Metal Box",
+  "Duffel Bag / Suitcase",
+  "Hostel Mattress (Single/Double)",
+  "Bucket & Kitchenware Set",
+  "Mini Refrigerator / Fridge",
+  "Desktop Computer / TV Box",
+  "Study Desk / Chair",
+  "Gas Cylinder & Stove Set",
+  "Standing / Table Fan",
+  "OTHER_CUSTOM",
+];
+
+const CATEGORY_PRESETS: Record<Exclude<ExtendedCargoCategory, "">, string[]> = {
+  STUDENT: STUDENT_ITEM_PRESETS,
+  STANDARD: [
+    "Boxed Parcels",
+    "Personal Luggage",
+    "Documents / Books",
+    "OTHER_CUSTOM",
+  ],
+  BULK: [
+    "Sacks / Bags of Grain",
+    "Crate Boxes",
+    "Construction Supplies",
+    "OTHER_CUSTOM",
+  ],
+  HEAVY: [
+    "Heavy Machinery",
+    "Generator / Engine",
+    "Furniture / Wardrobe",
+    "OTHER_CUSTOM",
+  ],
+  OVERSIZED: [
+    "Large Display Units",
+    "Pipes / Rods Bundle",
+    "Industrial Equipment",
+    "OTHER_CUSTOM",
+  ],
+  SPECIAL_HANDLING: [
+    "Fragile Glassware",
+    "Perishable Foods",
+    "Electronics / Server Hardware",
+    "OTHER_CUSTOM",
+  ],
+};
+
+const emptyLocation: LocationInput = {
+  country: "Ghana",
+  region: "",
+  city: "",
+  address: "",
+};
+const emptyContact: ContactInput = { name: "", phone: "", email: "" };
+
+const createEmptyCargoItem = (): CargoItemState => ({
+  id:
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(),
+  preset: "",
+  description: "",
+  quantity: 1,
+  weight: "",
+  dimensions: { length: "", width: "", height: "" },
+});
+
+function getTomorrowDateValue() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return tomorrow.toISOString().slice(0, 10);
 }
 
 export default function RequestDeliveryPage() {
-  // Pickup Selection State
-  const [pickupRegion, setPickupRegion] = useState("");
-  const [pickupArea, setPickupArea] = useState("");
-  const [customPickupArea, setCustomPickupArea] = useState("");
+  const [step, setStep] = useState(1);
+  const [pickup, setPickup] = useState(emptyLocation);
+  const [destination, setDestination] = useState(emptyLocation);
+  const [pickupContact, setPickupContact] = useState(emptyContact);
+  const [destinationContact, setDestinationContact] = useState(emptyContact);
 
-  // Destination Selection State
-  const [destRegion, setDestRegion] = useState("");
-  const [destArea, setDestArea] = useState("");
-  const [customDestArea, setCustomDestArea] = useState("");
-
-  // Cargo & Student Specific State
-  const [cargoType, setCargoType] = useState("");
-  const [studentItems, setStudentItems] = useState({
-    trunks: 0,
-    suitcases: 0,
-    backpacks: 0,
-    hasFridge: false,
-    hasGasCylinder: false,
-    hasTV: false,
-    hasMattress: false,
-    hasMicrowave: false,
-    hasFan: false,
-    hasPlasticChairsTable: false,
-  });
-
-  // Dynamic Item List for All Categories (including Student extras)
-  const [customItems, setCustomItems] = useState<CustomCargoItem[]>([
-    { id: "1", description: "", quantity: 1, weightOrSize: "" },
+  // Global category selected ONCE for the whole shipment
+  const [cargoCategory, setCargoCategory] = useState<ExtendedCargoCategory>("");
+  const [cargoItems, setCargoItems] = useState<CargoItemState[]>([
+    createEmptyCargoItem(),
   ]);
 
-  // Form Submission State
-  const [submitted, setSubmitted] = useState(false);
+  const [preferredPickupDate, setPreferredPickupDate] = useState("");
+  const [specialInstructions, setSpecialInstructions] = useState("");
+  const [notes, setNotes] = useState("");
+  const [locations, setLocations] = useState<SavedLocation[]>([]);
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdRequest, setCreatedRequest] = useState<{
+    requestNumber: string;
+    status: string;
+  } | null>(null);
 
-  // Student quantity modifiers
-  const handleStudentQuantityChange = (field: string, delta: number) => {
-    setStudentItems((prev) => ({
-      ...prev,
-      [field]: Math.max(
-        0,
-        (prev[field as keyof typeof prev] as number) + delta,
-      ),
-    }));
-  };
+  useEffect(() => {
+    customerApi
+      .listLocations()
+      .then((result) => setLocations(result.locations))
+      .catch(() => undefined);
+  }, []);
 
-  const handleStudentToggle = (field: string) => {
-    setStudentItems((prev) => ({
-      ...prev,
-      [field]: !prev[field as keyof typeof prev],
-    }));
-  };
-
-  // Custom Item Handlers
-  const handleAddCustomItem = () => {
-    setCustomItems((prev) => [
-      ...prev,
-      {
-        id: Date.now().toString(),
-        description: "",
-        quantity: 1,
-        weightOrSize: "",
-      },
-    ]);
-  };
-
-  const handleRemoveCustomItem = (id: string) => {
-    if (customItems.length === 1) return; // Keep at least one item input
-    setCustomItems((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const handleCustomItemChange = (
-    id: string,
-    field: keyof CustomCargoItem,
-    value: string | number,
+  const updateLocation = (
+    kind: "pickup" | "destination",
+    key: keyof LocationInput,
+    value: string,
   ) => {
-    setCustomItems((prev) =>
+    const setter = kind === "pickup" ? setPickup : setDestination;
+    setter((current) => ({ ...current, [key]: value }));
+  };
+
+  const updateRegion = (kind: "pickup" | "destination", region: string) => {
+    const setter = kind === "pickup" ? setPickup : setDestination;
+    setter((current) => ({ ...current, region, city: "" }));
+  };
+
+  const applySaved = (kind: "pickup" | "destination", id: string) => {
+    const location = locations.find((item) => item._id === id);
+    if (!location) return;
+    const value = {
+      country: location.country,
+      region: location.region,
+      city: location.city,
+      address: location.address,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      locationNotes: location.instructions,
+    };
+    if (kind === "pickup") setPickup(value);
+    else setDestination(value);
+  };
+
+  const handleCategoryChange = (category: ExtendedCargoCategory) => {
+    setCargoCategory(category);
+    // Reset preset & description for all items when category changes
+    setCargoItems((prev) =>
+      prev.map((item) => ({
+        ...item,
+        preset: "",
+        description: "",
+      })),
+    );
+  };
+
+  const addCargoItem = () => {
+    setCargoItems((prev) => [...prev, createEmptyCargoItem()]);
+  };
+
+  const removeCargoItem = (id: string) => {
+    if (cargoItems.length === 1) return;
+    setCargoItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const updatePreset = (id: string, preset: string) => {
+    setCargoItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              preset,
+              description: preset === "OTHER_CUSTOM" ? "" : preset,
+            }
+          : item,
+      ),
+    );
+  };
+
+  const updateCargoItem = (
+    id: string,
+    field: keyof CargoItemState,
+    value: unknown,
+  ) => {
+    setCargoItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
     );
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Filter out blank custom items
-    const validCustomItems = customItems.filter(
-      (item) => item.description.trim().length > 0,
+  const updateDimension = (
+    id: string,
+    dimension: "length" | "width" | "height",
+    value: string,
+  ) => {
+    setCargoItems((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              dimensions: { ...item.dimensions, [dimension]: value },
+            }
+          : item,
+      ),
     );
+  };
 
-    const payload = {
-      pickupRegion,
-      pickupLocation: finalPickupLocation,
-      destRegion,
-      destLocation: finalDestLocation,
-      cargoType,
-      studentPresetInventory: cargoType === "student" ? studentItems : null,
-      customItemizedCargo: validCustomItems,
-      notes: (e.target as HTMLFormElement).notes.value,
-    };
+  const validateStep = (targetStep: number): string => {
+    if (
+      targetStep === 1 &&
+      (!pickup.region ||
+        !pickup.city ||
+        !pickup.address ||
+        !pickupContact.name ||
+        !pickupContact.phone)
+    ) {
+      return "Complete the pickup location and contact fields.";
+    }
+
+    if (
+      targetStep === 2 &&
+      (!destination.region ||
+        !destination.city ||
+        !destination.address ||
+        !destinationContact.name ||
+        !destinationContact.phone)
+    ) {
+      return "Complete the destination location and contact fields.";
+    }
+
+    if (targetStep === 3) {
+      if (!preferredPickupDate) return "Please select a preferred pickup date.";
+      if (preferredPickupDate < getTomorrowDateValue()) {
+        return "Preferred pickup date must be tomorrow or later.";
+      }
+      if (!cargoCategory) return "Please choose a cargo category.";
+      if (cargoItems.length === 0) return "Please add at least one cargo item.";
+
+      for (let i = 0; i < cargoItems.length; i++) {
+        const item = cargoItems[i];
+        if (!item.description || item.quantity < 1) {
+          return `Please select or specify a description and valid quantity for item #${i + 1}.`;
+        }
+        if (
+          (cargoCategory === "HEAVY" || cargoCategory === "OVERSIZED") &&
+          (!item.weight ||
+            !Number.isFinite(Number(item.weight)) ||
+            Number(item.weight) <= 0)
+        ) {
+          return `Weight is required for heavy or oversized cargo (item #${i + 1}).`;
+        }
+        if (
+          cargoCategory === "OVERSIZED" &&
+          (!item.dimensions.length ||
+            !item.dimensions.width ||
+            !item.dimensions.height ||
+            !Number.isFinite(Number(item.dimensions.length)) ||
+            !Number.isFinite(Number(item.dimensions.width)) ||
+            !Number.isFinite(Number(item.dimensions.height)) ||
+            Number(item.dimensions.length) <= 0 ||
+            Number(item.dimensions.width) <= 0 ||
+            Number(item.dimensions.height) <= 0)
+        ) {
+          return `All dimensions are required for oversized cargo (item #${i + 1}).`;
+        }
+      }
+
+      if (cargoCategory === "SPECIAL_HANDLING" && !specialInstructions) {
+        return "Special instructions are required when special handling cargo is selected.";
+      }
+    }
+
+    return "";
+  };
+
+  const next = () => {
+    const message = validateStep(step);
+    setError(message);
+    if (!message) setStep((current) => Math.min(4, current + 1));
+  };
+
+  const submit = async () => {
+    for (let s = 1; s <= 3; s++) {
+      const message = validateStep(s);
+      if (message) {
+        setError(message);
+        setStep(s);
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+    setError("");
 
     try {
-      const response = await fetch("https://formspree.io/f/xwlpkzgb", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
+      const formattedCargo = cargoItems.map((item) => ({
+        category: (cargoCategory === "STUDENT"
+          ? "STANDARD"
+          : cargoCategory) as CargoCategory,
+        description:
+          cargoCategory === "STUDENT"
+            ? `[Student Move] ${item.description}`
+            : item.description,
+        quantity: item.quantity,
+        ...(item.weight
+          ? { weight: { value: Number(item.weight), unit: "kg" as const } }
+          : {}),
+        ...(cargoCategory === "OVERSIZED"
+          ? {
+              dimensions: {
+                length: Number(item.dimensions.length),
+                width: Number(item.dimensions.width),
+                height: Number(item.dimensions.height),
+                unit: "m" as const,
+              },
+            }
+          : {}),
+      }));
+
+      const result = await deliveryRequestApi.create({
+        pickup,
+        destination,
+        pickupContact,
+        destinationContact,
+        cargo: formattedCargo,
+        preferredPickupDate,
+        handlingRequirements: specialInstructions
+          ? { specialInstructions }
+          : undefined,
+        notes: notes || undefined,
       });
 
-      if (response.ok) {
-        setSubmitted(true);
+      setCreatedRequest({
+        requestNumber: result.request.requestNumber,
+        status: result.request.status,
+      });
+    } catch (reason) {
+      if (reason instanceof ApiRequestError) {
+        const details = reason.errors
+          ? Object.entries(reason.errors)
+              .flatMap(([field, messages]) =>
+                messages.map((message) => `${field}: ${message}`),
+              )
+              .join(" ")
+          : "";
+        setError(details ? `${reason.message} ${details}` : reason.message);
       } else {
-        alert("Failed to submit request. Please try again.");
+        setError("Unable to submit the request.");
       }
-    } catch (error) {
-      console.error("Error submitting form:", error);
-      alert("An error occurred. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const finalPickupLocation =
-    pickupArea === "Other" ? customPickupArea : pickupArea;
-  const finalDestLocation = destArea === "Other" ? customDestArea : destArea;
+  const renderLocation = (
+    kind: "pickup" | "destination",
+    value: LocationInput,
+    contact: ContactInput,
+    setContact: Dispatch<SetStateAction<ContactInput>>,
+  ) => (
+    <div className="space-y-5">
+      <div>
+        <Label>Use saved location</Label>
+        <Select
+          defaultValue=""
+          onChange={(event) => applySaved(kind, event.target.value)}
+        >
+          <option value="">Enter a new location</option>
+          {locations.map((location) => (
+            <option key={location._id} value={location._id}>
+              {location.label}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor={`${kind}-country`}>Country</Label>
+          <Input
+            id={`${kind}-country`}
+            value={value.country}
+            onChange={(event) =>
+              updateLocation(kind, "country", event.target.value)
+            }
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor={`${kind}-region`}>Region</Label>
+          <Select
+            id={`${kind}-region`}
+            value={value.region}
+            onChange={(event) => updateRegion(kind, event.target.value)}
+            required
+          >
+            <option value="">Select region</option>
+            {GHANA_REGIONS.map((region) => (
+              <option key={region} value={region}>
+                {region}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor={`${kind}-city`}>City / town</Label>
+          <Select
+            id={`${kind}-city`}
+            value={value.city}
+            onChange={(event) =>
+              updateLocation(kind, "city", event.target.value)
+            }
+            disabled={!value.region}
+            required
+          >
+            <option value="">
+              {value.region ? "Select city / town" : "Select region first"}
+            </option>
+            {(GHANA_LOCATIONS[value.region] ?? []).map((city) => (
+              <option key={city} value={city}>
+                {city}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor={`${kind}-address`}>Address / Name Of Area</Label>
+          <Input
+            id={`${kind}-address`}
+            value={value.address}
+            onChange={(event) =>
+              updateLocation(kind, "address", event.target.value)
+            }
+            required
+          />
+        </div>
+      </div>
+      <div>
+        <Label htmlFor={`${kind}-notes`}>Location notes (optional)</Label>
+        <Textarea
+          id={`${kind}-notes`}
+          value={value.locationNotes ?? ""}
+          onChange={(event) =>
+            updateLocation(kind, "locationNotes", event.target.value)
+          }
+          rows={2}
+        />
+      </div>
+      <h2 className="pt-2 text-lg font-semibold">Contact person</h2>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor={`${kind}-contact-name`}>Name</Label>
+          <Input
+            id={`${kind}-contact-name`}
+            value={contact.name}
+            onChange={(event) =>
+              setContact((current) => ({
+                ...current,
+                name: event.target.value,
+              }))
+            }
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor={`${kind}-contact-phone`}>Phone</Label>
+          <Input
+            id={`${kind}-contact-phone`}
+            value={contact.phone}
+            onChange={(event) =>
+              setContact((current) => ({
+                ...current,
+                phone: event.target.value,
+              }))
+            }
+            required
+          />
+        </div>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="bg-slate-50/50 py-16 sm:py-20">
-      <Container>
-        {/* Header */}
-        <div className="mx-auto max-w-2xl text-center">
-          <span className="inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
-            <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-            Instant Route & Freight Calculation
-          </span>
-          <h1 className="mt-4 font-display text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
-            Request a Delivery Quote
-          </h1>
-          <p className="mt-3 text-base text-gray-600">
-            Select your route regions and cargo specifications to receive an
-            instant dispatch quote.
+    <ProtectedRoute roles={customerRoles}>
+      <Container className="py-14 sm:py-20">
+        <div className="mx-auto max-w-3xl">
+          <p className="text-sm font-medium uppercase tracking-[0.2em] text-route">
+            New request
           </p>
-        </div>
-
-        <div className="mx-auto mt-12 max-w-2xl rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm sm:p-10">
-          {!submitted ? (
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Pickup Location Section */}
-              <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100 space-y-4">
-                <p className="text-xs font-bold uppercase tracking-wider text-amber-600">
-                  01. Pickup Location
-                </p>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <Label htmlFor="pickupRegion">Pickup Region</Label>
-                    <Select
-                      id="pickupRegion"
-                      name="pickupRegion"
-                      value={pickupRegion}
-                      onChange={(e) => {
-                        setPickupRegion(e.target.value);
-                        setPickupArea("");
-                        setCustomPickupArea("");
-                      }}
-                      required
-                    >
-                      <option value="">Select Region</option>
-                      {Object.keys(REGIONAL_LOCATIONS).map((region) => (
-                        <option key={region} value={region}>
-                          {region} Region
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="pickupArea">Pickup Area / District</Label>
-                    <Select
-                      id="pickupArea"
-                      name="pickupArea"
-                      value={pickupArea}
-                      onChange={(e) => setPickupArea(e.target.value)}
-                      disabled={!pickupRegion}
-                      required
-                    >
-                      <option value="">
-                        {pickupRegion ? "Select Area" : "Select Region First"}
-                      </option>
-                      {pickupRegion && (
-                        <>
-                          {REGIONAL_LOCATIONS[pickupRegion]?.map((area) => (
-                            <option key={area} value={area}>
-                              {area}
-                            </option>
-                          ))}
-                          <option value="Other">Other (Specify below)</option>
-                        </>
-                      )}
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Custom Pickup Area Input */}
-                {pickupArea === "Other" && (
-                  <div className="pt-2">
-                    <Label htmlFor="customPickupArea">
-                      Specify Pickup Town / Area
-                    </Label>
-                    <Input
-                      id="customPickupArea"
-                      name="customPickupArea"
-                      type="text"
-                      placeholder="e.g. Tafo, Tanoso, or specific landmark"
-                      value={customPickupArea}
-                      onChange={(e) => setCustomPickupArea(e.target.value)}
-                      required
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Destination Location Section */}
-              <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100 space-y-4">
-                <p className="text-xs font-bold uppercase tracking-wider text-amber-600">
-                  02. Destination Location
-                </p>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <Label htmlFor="destRegion">Destination Region</Label>
-                    <Select
-                      id="destRegion"
-                      name="destRegion"
-                      value={destRegion}
-                      onChange={(e) => {
-                        setDestRegion(e.target.value);
-                        setDestArea("");
-                        setCustomDestArea("");
-                      }}
-                      required
-                    >
-                      <option value="">Select Region</option>
-                      {Object.keys(REGIONAL_LOCATIONS).map((region) => (
-                        <option key={region} value={region}>
-                          {region} Region
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="destArea">
-                      Destination Area / District
-                    </Label>
-                    <Select
-                      id="destArea"
-                      name="destArea"
-                      value={destArea}
-                      onChange={(e) => setDestArea(e.target.value)}
-                      disabled={!destRegion}
-                      required
-                    >
-                      <option value="">
-                        {destRegion ? "Select Area" : "Select Region First"}
-                      </option>
-                      {destRegion && (
-                        <>
-                          {REGIONAL_LOCATIONS[destRegion]?.map((area) => (
-                            <option key={area} value={area}>
-                              {area}
-                            </option>
-                          ))}
-                          <option value="Other">Other (Specify below)</option>
-                        </>
-                      )}
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Custom Destination Area Input */}
-                {destArea === "Other" && (
-                  <div className="pt-2">
-                    <Label htmlFor="customDestArea">
-                      Specify Destination Town / Area
-                    </Label>
-                    <Input
-                      id="customDestArea"
-                      name="customDestArea"
-                      type="text"
-                      placeholder="e.g. Madina Zongo, Pokuase, or landmark"
-                      value={customDestArea}
-                      onChange={(e) => setCustomDestArea(e.target.value)}
-                      required
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Cargo Classification */}
-              <div>
-                <Label htmlFor="cargoType">Cargo Type & Service Category</Label>
-                <Select
-                  id="cargoType"
-                  name="cargoType"
-                  value={cargoType}
-                  onChange={(e) => setCargoType(e.target.value)}
-                  required
-                >
-                  <option value="" disabled>
-                    Select cargo type
-                  </option>
-                  <option value="student">
-                    Student Express & Hostel Relocation
-                  </option>
-                  <option value="standard">
-                    Standard Package / E-commerce Parcel
-                  </option>
-                  <option value="bulk">Bulk Goods & Wholesaler Freight</option>
-                  <option value="heavy">
-                    Heavy-Duty Equipment & Machinery
-                  </option>
-                  <option value="oversized">
-                    Oversized & Special Clearance Cargo
-                  </option>
-                  <option value="special">
-                    Special Handling (Temperature / High-Value)
-                  </option>
-                </Select>
-              </div>
-
-              {/* Student Preset Checklist (Only shows for Student category) */}
-              {cargoType === "student" && (
-                <div className="rounded-2xl bg-amber-50/60 p-5 border border-amber-200/80 space-y-5">
-                  <div>
-                    <h3 className="text-sm font-bold text-amber-950 flex items-center gap-2">
-                      🎓 Common Hostel Essentials
-                    </h3>
-                    <p className="text-xs text-amber-800/80 mt-0.5">
-                      Select common items or add custom items below.
-                    </p>
-                  </div>
-
-                  {/* Quantity Items */}
-                  <div className="space-y-3 bg-white/80 p-3.5 rounded-xl border border-amber-100">
-                    <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
-                      Bags & Luggage Quantities
-                    </p>
-
-                    {[
-                      { key: "trunks", label: "Metal Trunks / Chop Boxes" },
-                      { key: "suitcases", label: "Suitcases / Traveling Bags" },
-                      { key: "backpacks", label: "Backpacks / Sack Bags" },
-                    ].map((item) => (
-                      <div
-                        key={item.key}
-                        className="flex items-center justify-between py-1 border-b border-slate-100 last:border-b-0"
-                      >
-                        <span className="text-sm text-slate-700">
-                          {item.label}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleStudentQuantityChange(item.key, -1)
-                            }
-                            className="h-7 w-7 rounded-md bg-slate-200 text-slate-700 font-bold hover:bg-slate-300"
-                          >
-                            -
-                          </button>
-                          <span className="w-6 text-center text-sm font-semibold text-slate-900">
-                            {
-                              studentItems[
-                                item.key as keyof typeof studentItems
-                              ]
-                            }
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleStudentQuantityChange(item.key, 1)
-                            }
-                            className="h-7 w-7 rounded-md bg-amber-500 text-white font-bold hover:bg-amber-600"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Appliances & Essentials Toggle Grid */}
-                  <div className="space-y-3 bg-white/80 p-3.5 rounded-xl border border-amber-100">
-                    <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
-                      Hostel Appliances & Essentials
-                    </p>
-
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 text-xs font-medium text-slate-700">
-                      {[
-                        { key: "hasFridge", label: "Table Fridge / Freezer" },
-                        {
-                          key: "hasGasCylinder",
-                          label: "Gas Cylinder & Burner",
-                        },
-                        { key: "hasTV", label: "Television Screen" },
-                        {
-                          key: "hasMattress",
-                          label: "Mattress (Student Size)",
-                        },
-                        { key: "hasMicrowave", label: "Microwave / Air Fryer" },
-                        { key: "hasFan", label: "Standing Fan" },
-                        {
-                          key: "hasPlasticChairsTable",
-                          label: "Study Table / Chair",
-                        },
-                      ].map((item) => {
-                        const isChecked = Boolean(
-                          studentItems[item.key as keyof typeof studentItems],
-                        );
-                        return (
-                          <label
-                            key={item.key}
-                            onClick={() => handleStudentToggle(item.key)}
-                            className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
-                              isChecked
-                                ? "bg-amber-100/80 border-amber-400 text-amber-950 font-semibold"
-                                : "bg-white border-slate-200 hover:border-slate-300 text-slate-600"
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => {}}
-                              className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
-                            />
-                            <span>{item.label}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Specific Itemization Section for ALL Categories */}
-              {cargoType && (
-                <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200/80 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-amber-600">
-                        Itemized Cargo Details
-                      </p>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {cargoType === "student"
-                          ? "Add any extra items not included in the checklist above."
-                          : "Specify individual items, quantities, and estimated sizes/weights."}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    {customItems.map((item, index) => (
-                      <div
-                        key={item.id}
-                        className="grid grid-cols-12 gap-2 items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm"
-                      >
-                        {/* Item Description */}
-                        <div className="col-span-12 sm:col-span-5">
-                          <Input
-                            type="text"
-                            placeholder={
-                              cargoType === "student"
-                                ? "e.g., Bucket, Shoe rack, Mirror"
-                                : cargoType === "bulk"
-                                  ? "e.g., Bags of Rice, Cement, Tiles"
-                                  : "Item Description"
-                            }
-                            value={item.description}
-                            onChange={(e) =>
-                              handleCustomItemChange(
-                                item.id,
-                                "description",
-                                e.target.value,
-                              )
-                            }
-                          />
-                        </div>
-
-                        {/* Quantity */}
-                        <div className="col-span-5 sm:col-span-3 flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCustomItemChange(
-                                item.id,
-                                "quantity",
-                                Math.max(1, item.quantity - 1),
-                              )
-                            }
-                            className="h-9 w-9 rounded-lg bg-slate-100 text-slate-700 font-bold hover:bg-slate-200"
-                          >
-                            -
-                          </button>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              handleCustomItemChange(
-                                item.id,
-                                "quantity",
-                                parseInt(e.target.value) || 1,
-                              )
-                            }
-                            className="text-center font-semibold"
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleCustomItemChange(
-                                item.id,
-                                "quantity",
-                                item.quantity + 1,
-                              )
-                            }
-                            className="h-9 w-9 rounded-lg bg-slate-100 text-slate-700 font-bold hover:bg-slate-200"
-                          >
-                            +
-                          </button>
-                        </div>
-
-                        {/* Weight or Size */}
-                        <div className="col-span-5 sm:col-span-3">
-                          <Input
-                            type="text"
-                            placeholder="e.g. 20kg, 2x3 ft"
-                            value={item.weightOrSize}
-                            onChange={(e) =>
-                              handleCustomItemChange(
-                                item.id,
-                                "weightOrSize",
-                                e.target.value,
-                              )
-                            }
-                          />
-                        </div>
-
-                        {/* Remove Action Button */}
-                        <div className="col-span-2 sm:col-span-1 flex justify-center">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveCustomItem(item.id)}
-                            disabled={customItems.length === 1}
-                            className="text-slate-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-slate-400 p-1"
-                            title="Remove item"
-                          >
-                            <svg
-                              className="h-5 w-5"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleAddCustomItem}
-                    className="inline-flex items-center gap-2 text-xs font-bold text-amber-600 hover:text-amber-700 pt-1"
-                  >
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-                      +
-                    </span>
-                    Add Another Item
-                  </button>
-                </div>
-              )}
-
-              {/* Cargo Notes */}
-              <div>
-                <Label htmlFor="notes">
-                  Cargo Description & Special Instructions
-                </Label>
-                <Textarea
-                  id="notes"
-                  name="notes"
-                  rows={3}
-                  placeholder="Specify weight, dimensions, fragile items, hostel block/room number..."
-                />
-              </div>
-
-              {/* Action */}
-              <div className="pt-2">
-                <Button type="submit" className="w-full">
-                  Generate Instant Delivery Quote
+          <h1 className="mt-3 text-4xl font-semibold">
+            Tell us what needs moving
+          </h1>
+          {createdRequest ? (
+            <div className="mt-10 rounded-2xl border border-emerald-200 bg-emerald-50 p-8">
+              <h2 className="text-2xl font-semibold text-emerald-950">
+                Request submitted
+              </h2>
+              <p className="mt-2 text-emerald-900">
+                Your request number is{" "}
+                <strong>{createdRequest.requestNumber}</strong>. Status:{" "}
+                {createdRequest.status}.
+              </p>
+              <div className="mt-6 flex gap-3">
+                <Button href="/dashboard">View dashboard</Button>
+                <Button href="/request-delivery" variant="secondary">
+                  Create another
                 </Button>
               </div>
-            </form>
+            </div>
           ) : (
-            /* Confirmation State */
-            <div className="py-8 text-center space-y-4">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-                <svg
-                  className="h-8 w-8"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
+            <div className="mt-8 rounded-2xl border border-navy-950/10 bg-white p-6 shadow-sm sm:p-8">
+              <div className="mb-8 grid grid-cols-4 gap-2">
+                {["Pickup", "Destination", "Cargo", "Review"].map(
+                  (label, index) => (
+                    <div
+                      key={label}
+                      className={`border-t-2 pt-2 text-xs font-semibold ${step === index + 1 ? "border-route text-navy-950" : "border-navy-950/15 text-ink-muted"}`}
+                    >
+                      {index + 1}. {label}
+                    </div>
+                  ),
+                )}
               </div>
-              <h3 className="font-display text-2xl font-bold text-gray-900">
-                Quote Request Received!
-              </h3>
-              <p className="text-sm text-gray-600 max-w-md mx-auto">
-                Route:{" "}
-                <span className="font-semibold text-gray-900">
-                  {finalPickupLocation} ({pickupRegion})
-                </span>{" "}
-                to{" "}
-                <span className="font-semibold text-gray-900">
-                  {finalDestLocation} ({destRegion})
-                </span>
-                .
-              </p>
-              <p className="text-xs text-slate-500">
-                Our dispatch team is reviewing your route clearance and driver
-                availability. You will receive an SMS/Email quote within 15
-                minutes.
-              </p>
-              <div className="pt-4">
-                <Button onClick={() => setSubmitted(false)} variant="secondary">
-                  Submit Another Request
+              {error && (
+                <p
+                  role="alert"
+                  className="mb-6 border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+                >
+                  {error}
+                </p>
+              )}
+              {step === 1 &&
+                renderLocation(
+                  "pickup",
+                  pickup,
+                  pickupContact,
+                  setPickupContact,
+                )}
+              {step === 2 &&
+                renderLocation(
+                  "destination",
+                  destination,
+                  destinationContact,
+                  setDestinationContact,
+                )}
+              {step === 3 && (
+                <div className="space-y-8">
+                  <div>
+                    <Label htmlFor="preferred-date">
+                      Preferred pickup date
+                    </Label>
+                    <Input
+                      id="preferred-date"
+                      type="date"
+                      min={getTomorrowDateValue()}
+                      value={preferredPickupDate}
+                      onChange={(event) =>
+                        setPreferredPickupDate(event.target.value)
+                      }
+                      required
+                    />
+                  </div>
+
+                  {/* STEP-LEVEL CATEGORY SELECTION */}
+                  <div>
+                    <Label htmlFor="global-cargo-category">
+                      Cargo Category
+                    </Label>
+                    <Select
+                      id="global-cargo-category"
+                      value={cargoCategory}
+                      onChange={(e) =>
+                        handleCategoryChange(
+                          e.target.value as ExtendedCargoCategory,
+                        )
+                      }
+                    >
+                      <option value="">-- Choose Category --</option>
+                      <option value="STUDENT">Student / Hostel Move</option>
+                      <option value="STANDARD">Standard</option>
+                      <option value="BULK">Bulk</option>
+                      <option value="HEAVY">Heavy</option>
+                      <option value="OVERSIZED">Oversized</option>
+                      <option value="SPECIAL_HANDLING">Special handling</option>
+                    </Select>
+                  </div>
+
+                  {cargoCategory && (
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-semibold">Cargo items</h2>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={addCargoItem}
+                        >
+                          + Add item
+                        </Button>
+                      </div>
+
+                      {cargoItems.map((item, index) => (
+                        <div
+                          key={item.id}
+                          className="relative space-y-4 rounded-xl border border-navy-950/10 p-4 sm:p-5"
+                        >
+                          <div className="flex items-center justify-between border-b pb-2">
+                            <span className="font-semibold text-sm">
+                              Item #{index + 1}
+                            </span>
+                            {cargoItems.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeCargoItem(item.id)}
+                                className="text-xs font-medium text-red-600 hover:underline"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+
+                          <div>
+                            <Label htmlFor={`preset-${item.id}`}>
+                              Select item type
+                            </Label>
+                            <Select
+                              id={`preset-${item.id}`}
+                              value={item.preset}
+                              onChange={(e) =>
+                                updatePreset(item.id, e.target.value)
+                              }
+                            >
+                              <option value="">-- Choose item preset --</option>
+                              {CATEGORY_PRESETS[cargoCategory].map((preset) => (
+                                <option key={preset} value={preset}>
+                                  {preset === "OTHER_CUSTOM"
+                                    ? "+ Add item not found in list (Custom)"
+                                    : preset}
+                                </option>
+                              ))}
+                            </Select>
+                          </div>
+
+                          {(item.preset === "OTHER_CUSTOM" ||
+                            (!item.preset && cargoCategory !== "STUDENT")) && (
+                            <div>
+                              <Label htmlFor={`description-${item.id}`}>
+                                {cargoCategory === "STUDENT"
+                                  ? "Specify unlisted student item"
+                                  : "Item Description"}
+                              </Label>
+                              <Textarea
+                                id={`description-${item.id}`}
+                                placeholder={
+                                  cargoCategory === "STUDENT"
+                                    ? "e.g., Plastic buckets, dish drying rack, study lamp"
+                                    : "Describe the item..."
+                                }
+                                value={item.description}
+                                onChange={(e) =>
+                                  updateCargoItem(
+                                    item.id,
+                                    "description",
+                                    e.target.value,
+                                  )
+                                }
+                                required
+                              />
+                            </div>
+                          )}
+
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                              <Label htmlFor={`quantity-${item.id}`}>
+                                Quantity
+                              </Label>
+                              <Input
+                                id={`quantity-${item.id}`}
+                                type="number"
+                                min={1}
+                                value={item.quantity}
+                                onChange={(e) =>
+                                  updateCargoItem(
+                                    item.id,
+                                    "quantity",
+                                    Number(e.target.value),
+                                  )
+                                }
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor={`weight-${item.id}`}>
+                                Weight in kg{" "}
+                                {cargoCategory === "HEAVY" ||
+                                cargoCategory === "OVERSIZED"
+                                  ? "(required)"
+                                  : "(optional)"}
+                              </Label>
+                              <Input
+                                id={`weight-${item.id}`}
+                                type="number"
+                                min={0}
+                                value={item.weight}
+                                onChange={(e) =>
+                                  updateCargoItem(
+                                    item.id,
+                                    "weight",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </div>
+                          </div>
+
+                          {cargoCategory === "OVERSIZED" && (
+                            <div className="grid gap-4 sm:grid-cols-3">
+                              {(["length", "width", "height"] as const).map(
+                                (dim) => (
+                                  <div key={dim}>
+                                    <Label htmlFor={`${dim}-${item.id}`}>
+                                      {dim} in metres
+                                    </Label>
+                                    <Input
+                                      id={`${dim}-${item.id}`}
+                                      type="number"
+                                      min={0}
+                                      value={item.dimensions[dim]}
+                                      onChange={(e) =>
+                                        updateDimension(
+                                          item.id,
+                                          dim,
+                                          e.target.value,
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                ),
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div>
+                    <Label htmlFor="special-instructions">
+                      Special instructions{" "}
+                      {cargoCategory === "SPECIAL_HANDLING"
+                        ? "(required)"
+                        : "(optional)"}
+                    </Label>
+                    <Textarea
+                      id="special-instructions"
+                      value={specialInstructions}
+                      onChange={(e) => setSpecialInstructions(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="notes">Additional notes (optional)</Label>
+                    <Textarea
+                      id="notes"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                </div>
+              )}
+              {step === 4 && (
+                <div className="space-y-5 text-sm">
+                  <h2 className="text-2xl font-semibold">
+                    Review your request
+                  </h2>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <p className="font-semibold">Pickup</p>
+                      <p className="text-ink-muted">
+                        {pickup.address}, {pickup.city}, {pickup.region}
+                      </p>
+                      <p className="text-ink-muted">
+                        {pickupContact.name} · {pickupContact.phone}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="font-semibold">Destination</p>
+                      <p className="text-ink-muted">
+                        {destination.address}, {destination.city},{" "}
+                        {destination.region}
+                      </p>
+                      <p className="text-ink-muted">
+                        {destinationContact.name} · {destinationContact.phone}
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-semibold">
+                      Cargo Category: {cargoCategory} ({cargoItems.length}{" "}
+                      item(s))
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {cargoItems.map((item, idx) => (
+                        <p key={item.id} className="text-ink-muted">
+                          #{idx + 1}: {item.description} (Qty: {item.quantity}
+                          {item.weight ? `, ${item.weight}kg` : ""})
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-ink-muted">
+                    Preferred pickup: {preferredPickupDate}
+                  </p>
+                </div>
+              )}
+              <div className="mt-8 flex justify-between gap-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setStep((current) => Math.max(1, current - 1))}
+                  disabled={step === 1}
+                >
+                  Back
                 </Button>
+                {step < 4 ? (
+                  <Button type="button" onClick={next}>
+                    Continue
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={() => void submit()}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Submitting..." : "Submit request"}
+                  </Button>
+                )}
               </div>
             </div>
           )}
         </div>
       </Container>
-    </div>
+    </ProtectedRoute>
   );
 }

@@ -1,5 +1,9 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "path";
 import { z } from "zod";
+
+dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
 
 /**
  * All environment variables the API depends on are declared and validated
