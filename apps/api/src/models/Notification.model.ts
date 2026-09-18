@@ -4,8 +4,8 @@ import type { DeliveryStatus } from "./DeliveryRequest.model";
 export interface NotificationDocument {
   customer: Schema.Types.ObjectId;
   deliveryRequest: Schema.Types.ObjectId;
-  type: "DELIVERY_STATUS_CHANGED";
-  status: DeliveryStatus;
+  type: "DELIVERY_STATUS_CHANGED" | "QUOTE_STATUS_CHANGED";
+  status: DeliveryStatus | "DRAFT" | "PENDING_APPROVAL" | "SENT" | "VIEWED" | "ACCEPTED" | "REJECTED" | "EXPIRED" | "CANCELLED";
   title: string;
   message: string;
   readAt?: Date;
@@ -17,7 +17,7 @@ const notificationSchema = new Schema<NotificationDocument>(
   {
     customer: { type: Schema.Types.ObjectId, ref: "Customer", required: true, index: true },
     deliveryRequest: { type: Schema.Types.ObjectId, ref: "DeliveryRequest", required: true, index: true },
-    type: { type: String, enum: ["DELIVERY_STATUS_CHANGED"], required: true },
+    type: { type: String, enum: ["DELIVERY_STATUS_CHANGED", "QUOTE_STATUS_CHANGED"], required: true },
     status: { type: String, required: true },
     title: { type: String, required: true, maxlength: 120 },
     message: { type: String, required: true, maxlength: 500 },

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Bell } from "lucide-react";
+import { ArrowLeft, Bell, CheckCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Container } from "@/components/Container";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -54,6 +54,29 @@ export default function NotificationsPage() {
     }
   };
 
+  const deleteNotificationItem = async (notificationId: string) => {
+    try {
+      await notificationApi.delete(notificationId);
+      setNotifications((current) =>
+        current.filter((item) => item._id !== notificationId),
+      );
+      if (
+        notifications.find((item) => item._id === notificationId)?.readAt ===
+        undefined
+      ) {
+        setUnreadCount((current) => Math.max(0, current - 1));
+      }
+      showToast("Notification deleted.", "success");
+    } catch (reason) {
+      showToast(
+        reason instanceof Error
+          ? reason.message
+          : "Unable to delete notification.",
+        "error",
+      );
+    }
+  };
+
   return (
     <ProtectedRoute>
       <Container className="py-14 sm:py-20">
@@ -101,13 +124,11 @@ export default function NotificationsPage() {
           ) : (
             <div className="divide-y divide-navy-950/10">
               {notifications.map((notification) => (
-                <button
-                  type="button"
+                <div
                   key={notification._id}
-                  onClick={() => void markNotificationRead(notification)}
-                  className={`block w-full px-5 py-5 text-left transition-colors hover:bg-paper sm:px-7 ${notification.readAt ? "opacity-60" : ""}`}
+                  className={`flex items-start gap-4 px-5 py-5 transition-colors hover:bg-paper sm:px-7 ${notification.readAt ? "opacity-60" : ""}`}
                 >
-                  <div className="flex items-start gap-4">
+                  <div className="flex min-w-0 flex-1 items-start gap-4">
                     <span
                       className={`mt-2 h-2.5 w-2.5 shrink-0 rounded-full ${notification.readAt ? "bg-navy-950/15" : "bg-route"}`}
                     />
@@ -127,7 +148,31 @@ export default function NotificationsPage() {
                       </p>
                     </div>
                   </div>
-                </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {!notification.readAt && (
+                      <button
+                        type="button"
+                        title="Mark as read"
+                        aria-label={`Mark ${notification.title} as read`}
+                        onClick={() => void markNotificationRead(notification)}
+                        className="rounded-md border border-navy-950/10 p-2 text-ink-muted hover:border-navy-950/20 hover:text-navy-950"
+                      >
+                        <CheckCheck aria-hidden="true" className="h-4 w-4" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      title="Delete notification"
+                      aria-label={`Delete ${notification.title}`}
+                      onClick={() =>
+                        void deleteNotificationItem(notification._id)
+                      }
+                      className="rounded-md border border-navy-950/10 p-2 text-ink-muted hover:border-navy-950/20 hover:text-navy-950"
+                    >
+                      <Trash2 aria-hidden="true" className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           )}

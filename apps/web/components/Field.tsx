@@ -6,7 +6,7 @@ import {
 } from "react";
 
 const fieldClasses =
-  "w-full rounded-sm border border-navy-950/15 bg-white px-4 py-2.5 text-sm text-ink placeholder:text-ink-faint focus:border-navy-950 focus:outline-none";
+  "w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-ink shadow-sm transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-route focus:bg-white focus:outline-none focus:ring-4 focus:ring-route/10";
 
 export function Label(props: LabelHTMLAttributes<HTMLLabelElement>) {
   return (
@@ -18,7 +18,9 @@ export function Label(props: LabelHTMLAttributes<HTMLLabelElement>) {
 }
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={`${fieldClasses} ${props.className ?? ""}`} />;
+  return (
+    <input {...props} className={`${fieldClasses} ${props.className ?? ""}`} />
+  );
 }
 
 export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -32,5 +34,7 @@ export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
 }
 
 export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={`${fieldClasses} ${props.className ?? ""}`} />;
+  return (
+    <select {...props} className={`${fieldClasses} ${props.className ?? ""}`} />
+  );
 }

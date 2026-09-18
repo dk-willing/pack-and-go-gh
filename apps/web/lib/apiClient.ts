@@ -137,7 +137,54 @@ export interface CargoInput { category: CargoCategory; description: string; quan
 export interface HandlingInput { loadingAssistance?: boolean; unloadingAssistance?: boolean; fragile?: boolean; specialEquipmentRequired?: boolean; specialInstructions?: string }
 export interface DeliveryRequest { _id: string; requestNumber: string; status: DeliveryStatus; pickup: LocationInput; destination: LocationInput; pickupContact: ContactInput; destinationContact: ContactInput; cargo: CargoInput[]; preferredPickupDate: string; handlingRequirements?: HandlingInput; notes?: string; quote?: { amount: number; currency: string; notes?: string; quotedAt: string; decisionAt?: string }; estimatedDeliveryDate?: string; rider?: { name: string; phone: string; vehicle: string; registrationNumber: string }; trackingNumber?: string; dispatchedAt?: string; createdAt: string; updatedAt: string }
 export interface AdminDeliveryRequest extends DeliveryRequest { customer?: { user?: { name?: string; email?: string } } }
-export interface CustomerNotification { _id: string; deliveryRequest: string; type: "DELIVERY_STATUS_CHANGED"; status: DeliveryStatus; title: string; message: string; readAt?: string; createdAt: string }
+export interface CustomerNotification { _id: string; deliveryRequest: string; type: "DELIVERY_STATUS_CHANGED" | "QUOTE_STATUS_CHANGED"; status: DeliveryStatus | "DRAFT" | "PENDING_APPROVAL" | "SENT" | "VIEWED" | "ACCEPTED" | "REJECTED" | "EXPIRED" | "CANCELLED"; title: string; message: string; readAt?: string; createdAt: string }
+
+export type QuoteStatus = "DRAFT" | "PENDING_APPROVAL" | "SENT" | "VIEWED" | "ACCEPTED" | "REJECTED" | "EXPIRED" | "CANCELLED";
+export interface QuoteBreakdown {
+  subtotal: number;
+  discounts: number;
+  taxes: number;
+  additionalCharges: number;
+  total: number;
+}
+export interface QuotePricingSnapshot {
+  pricingVersion: string;
+  calculatedAt: string;
+  route: Record<string, unknown>;
+  cargo: Record<string, unknown>[];
+  vehicle: Record<string, unknown>;
+  services: Record<string, unknown>;
+  breakdown: QuoteBreakdown;
+  subtotal: number;
+  discounts: number;
+  taxes: number;
+  additionalCharges: number;
+  total: number;
+}
+export interface QuoteRecord {
+  _id: string;
+  quoteNumber: string;
+  deliveryRequest: string;
+  customer: string;
+  currency: string;
+  pricingSnapshot: QuotePricingSnapshot;
+  status: QuoteStatus;
+  validUntil: string;
+  title?: string;
+  description?: string;
+  customerNotes?: string;
+  internalNotes?: string;
+  sentAt?: string;
+  viewedAt?: string;
+  acceptedAt?: string;
+  rejectedAt?: string;
+  cancelledAt?: string;
+  rejectionReason?: string;
+  cancellationReason?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export const customerApi = {
   getProfile: () => apiClient.get<CustomerProfile>("/customers/me"),
@@ -151,6 +198,26 @@ export const customerApi = {
 export const notificationApi = {
   list: (limit = 20) => apiClient.get<{ notifications: CustomerNotification[]; unreadCount: number }>(`/notifications?limit=${limit}`),
   markRead: (id: string) => apiClient.patch<{ notification: CustomerNotification }>(`/notifications/${id}/read`, {}),
+  delete: (id: string) => apiClient.delete<{ notification: CustomerNotification }>(`/notifications/${id}`),
+};
+
+export const quoteApi = {
+  create: (input: { deliveryRequestId: string; title?: string; description?: string; customerNotes?: string; internalNotes?: string }) => apiClient.post<{ quote: QuoteRecord }>('/quotes', input),
+  list: (params: { page?: number; status?: QuoteStatus; customerId?: string; deliveryRequestId?: string; search?: string } = {}) => {
+    const query = new URLSearchParams({ page: String(params.page ?? 1) });
+    if (params.status) query.set('status', params.status);
+    if (params.customerId) query.set('customerId', params.customerId);
+    if (params.deliveryRequestId) query.set('deliveryRequestId', params.deliveryRequestId);
+    if (params.search) query.set('search', params.search);
+    return apiClient.get<{ quotes: QuoteRecord[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/quotes?${query.toString()}`);
+  },
+  getById: (id: string) => apiClient.get<{ quote: QuoteRecord }>(`/quotes/${id}`),
+  recalculate: (id: string) => apiClient.post<{ quote: QuoteRecord }>(`/quotes/${id}/recalculate`, {}),
+  send: (id: string) => apiClient.post<{ quote: QuoteRecord }>(`/quotes/${id}/send`, {}),
+  accept: (id: string, reason?: string) => apiClient.post<{ quote: QuoteRecord }>(`/quotes/${id}/accept`, { reason }),
+  reject: (id: string, reason?: string) => apiClient.post<{ quote: QuoteRecord }>(`/quotes/${id}/reject`, { reason }),
+  cancel: (id: string, reason?: string) => apiClient.post<{ quote: QuoteRecord }>(`/quotes/${id}/cancel`, { reason }),
+  mine: (page = 1) => apiClient.get<{ quotes: QuoteRecord[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/customers/me/quotes?page=${page}`),
 };
 
 export const deliveryRequestApi = {

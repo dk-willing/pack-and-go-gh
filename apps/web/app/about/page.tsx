@@ -1,5 +1,12 @@
+import type { Metadata } from "next";
 import { Container } from "@/components/Container";
 import { SectionHeading } from "@/components/SectionHeading";
+
+export const metadata: Metadata = {
+  title: "About",
+  description:
+    "Learn about Pack & Go - GH, a trusted delivery solutions provider in Ghana for parcels, bulk freight, and specialized cargo transport.",
+};
 
 export default function AboutPage() {
   return (
@@ -17,9 +24,9 @@ export default function AboutPage() {
           between regions.
         </p>
         <p>
-          This page is a placeholder for the foundation stage of the
-          platform. Company details, team information, and our safety and
-          handling standards will be added here as the platform develops.
+          This page is a placeholder for the foundation stage of the platform.
+          Company details, team information, and our safety and handling
+          standards will be added here as the platform develops.
         </p>
       </div>
     </Container>

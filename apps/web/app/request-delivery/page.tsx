@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/Button";
 import { Container } from "@/components/Container";
 import { Input, Label, Select, Textarea } from "@/components/Field";
@@ -125,6 +126,7 @@ export default function RequestDeliveryPage() {
   const [specialInstructions, setSpecialInstructions] = useState("");
   const [notes, setNotes] = useState("");
   const [locations, setLocations] = useState<SavedLocation[]>([]);
+  const router = useRouter();
   const { showToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdRequest, setCreatedRequest] = useState<{
@@ -136,8 +138,13 @@ export default function RequestDeliveryPage() {
     customerApi
       .listLocations()
       .then((result) => setLocations(result.locations))
-      .catch(() => undefined);
-  }, []);
+      .catch((error) => {
+        if (error instanceof ApiRequestError && error.statusCode === 401) {
+          router.replace("/login");
+          return;
+        }
+      });
+  }, [router]);
 
   const updateLocation = (
     kind: "pickup" | "destination",

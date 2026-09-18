@@ -1,9 +1,14 @@
-"use client";
-
+import type { Metadata } from "next";
 import Image from "next/image";
 import { Container } from "@/components/Container";
 import { SectionHeading } from "@/components/SectionHeading";
 import { Button } from "@/components/Button";
+
+export const metadata: Metadata = {
+  title: "Delivery Solutions in Ghana",
+  description:
+    "Explore Pack & Go - GH delivery solutions in Ghana for parcels, business freight, heavy equipment, and oversized cargo across the country.",
+};
 
 const services = [
   {

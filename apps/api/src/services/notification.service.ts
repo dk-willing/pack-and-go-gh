@@ -33,6 +33,22 @@ export async function notifyDeliveryStatus(
   });
 }
 
+export async function emitTrackingNotification(
+  shipment: { customer?: unknown; _id?: unknown; requestNumber?: string | null; trackingNumber?: string | null },
+  status: DeliveryStatus,
+  description: string,
+) {
+  if (!shipment.customer || !shipment._id) return null;
+  return Notification.create({
+    customer: shipment.customer,
+    deliveryRequest: shipment._id,
+    type: "DELIVERY_STATUS_CHANGED",
+    status,
+    title: statusLabels[status] ?? "Shipment update",
+    message: description || `${statusLabels[status] ?? "Shipment update"} for ${shipment.trackingNumber || shipment.requestNumber || "your shipment"}.`,
+  });
+}
+
 export async function listCustomerNotifications(customerId: unknown, limit: number) {
   return Notification.find({ customer: customerId }).sort({ createdAt: -1 }).limit(limit).lean();
 }
@@ -47,4 +63,8 @@ export async function markNotificationRead(customerId: unknown, notificationId: 
     { $set: { readAt: new Date() } },
     { new: true },
   );
+}
+
+export async function deleteNotification(customerId: unknown, notificationId: string) {
+  return Notification.findOneAndDelete({ _id: notificationId, customer: customerId });
 }

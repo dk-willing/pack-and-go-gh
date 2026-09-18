@@ -236,8 +236,36 @@ export default function HomePage() {
     },
   ];
 
+  const localBusinessSchema = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    name: "Pack & Go - GH",
+    description:
+      "Delivery solutions in Ghana for parcels, freight, heavy equipment, and oversized cargo transport.",
+    url: "https://packandgo-gh.com",
+    areaServed: "Ghana",
+    address: {
+      "@type": "PostalAddress",
+      addressCountry: "GH",
+    },
+    telephone: "+233500000000",
+    email: "hello@packandgo-gh.com",
+    sameAs: [
+      "https://instagram.com/packandgo.gh",
+      "https://facebook.com",
+      "https://www.linkedin.com",
+    ],
+    priceRange: "$$",
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(localBusinessSchema),
+        }}
+      />
       {/* Hero Section */}
       <section className="border-b border-navy-950/10 bg-white">
         <Container className="grid gap-12 py-12 lg:grid-cols-2 lg:items-center lg:py-4">
@@ -247,12 +275,12 @@ export default function HomePage() {
               Ghana&apos;s Trusted Logistics Partner
             </span>
             <h1 className="mt-4 text-4xl font-semibold tracking-tight leading-[1.1] text-gray-900 sm:text-5xl">
-              One carrier for everything you need moved across Ghana.
+              Delivery solutions in Ghana for parcels, freight, and heavy cargo.
             </h1>
             <p className="mt-6 max-w-prose text-lg leading-relaxed text-ink-muted">
-              From a single parcel to oversized industrial equipment, Pack &amp;
-              Go plans the route, assigns the right vehicle, and keeps you
-              updated from pickup to proof of delivery.
+              Pack &amp; Go provides dependable delivery solutions in Ghana for
+              businesses and households moving documents, commercial goods,
+              oversized cargo, and industrial equipment across all 16 regions.
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <Button href="/request-delivery">Request a delivery</Button>

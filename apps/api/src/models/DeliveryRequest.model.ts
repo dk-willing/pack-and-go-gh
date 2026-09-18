@@ -47,6 +47,16 @@ const riderSchema = new Schema({
   registrationNumber: { type: String, required: true, trim: true, maxlength: 30 },
 }, { _id: false });
 
+const currentLocationSchema = new Schema({
+  latitude: { type: Number, min: -90, max: 90 },
+  longitude: { type: Number, min: -180, max: 180 },
+  address: { type: String, trim: true, maxlength: 250 },
+  city: { type: String, trim: true, maxlength: 100 },
+  region: { type: String, trim: true, maxlength: 80 },
+  country: { type: String, trim: true, maxlength: 80 },
+  updatedAt: { type: Date, default: Date.now },
+}, { _id: false });
+
 const deliveryRequestSchema = new Schema({
   requestNumber: { type: String, required: true, unique: true, index: true },
   customer: { type: Schema.Types.ObjectId, ref: "Customer", required: true, index: true },
@@ -64,6 +74,8 @@ const deliveryRequestSchema = new Schema({
   estimatedDeliveryDate: { type: Date },
   rider: { type: riderSchema },
   trackingNumber: { type: String, unique: true, sparse: true, index: true },
+  currentLocation: { type: currentLocationSchema },
+  lastTrackingAt: { type: Date },
   dispatchedAt: { type: Date },
   statusHistory: [{ status: { type: String, enum: DELIVERY_STATUSES }, changedBy: { type: Schema.Types.ObjectId, ref: "User" }, changedAt: { type: Date, default: Date.now } }],
 }, { timestamps: true, versionKey: false });

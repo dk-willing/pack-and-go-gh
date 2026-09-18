@@ -3,11 +3,13 @@
 import Link from "next/link";
 import {
   Bell,
+  CheckCheck,
   ChevronDown,
   LayoutDashboard,
   LogOut,
   MapPin,
   PackageSearch,
+  Trash2,
   Truck,
   UserPlus,
   UserRound,
@@ -37,6 +39,7 @@ export function Navbar() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const notificationBellRef = useRef<HTMLButtonElement>(null);
+  const notificationMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const userInitials = user
     ? user.name
@@ -85,7 +88,9 @@ export function Navbar() {
       if (
         isNotificationsOpen &&
         notificationBellRef.current &&
-        !notificationBellRef.current.contains(target)
+        notificationMenuRef.current &&
+        !notificationBellRef.current.contains(target) &&
+        !notificationMenuRef.current.contains(target)
       ) {
         setIsNotificationsOpen(false);
       }
@@ -114,6 +119,18 @@ export function Navbar() {
       setUnreadCount((current) => Math.max(0, current - 1));
     } catch {
       // Keep the item unread if the server update fails.
+    }
+  };
+
+  const deleteNotificationItem = async (notificationId: string) => {
+    try {
+      await notificationApi.delete(notificationId);
+      setNotifications((current) =>
+        current.filter((item) => item._id !== notificationId),
+      );
+      setUnreadCount((current) => Math.max(0, current - 1));
+    } catch {
+      // Leave the item in place if deletion fails.
     }
   };
 
@@ -170,7 +187,10 @@ export function Navbar() {
                     )}
                   </button>
                   {isNotificationsOpen && (
-                    <div className="fixed inset-x-4 top-24 z-50 max-h-[calc(100vh-7rem)] overflow-hidden rounded-xl border border-navy-950/10 bg-white shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:max-h-none sm:w-[22rem]">
+                    <div
+                      ref={notificationMenuRef}
+                      className="fixed inset-x-4 top-24 z-50 max-h-[calc(100vh-7rem)] overflow-hidden rounded-xl border border-navy-950/10 bg-white shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:max-h-none sm:w-[22rem]"
+                    >
                       <div className="flex items-center justify-between border-b border-navy-950/10 px-4 py-3">
                         <div>
                           <p className="font-semibold text-navy-950">
@@ -191,15 +211,11 @@ export function Navbar() {
                           </p>
                         ) : (
                           notifications.map((notification) => (
-                            <button
-                              type="button"
+                            <div
                               key={notification._id}
-                              onClick={() =>
-                                void markNotificationRead(notification)
-                              }
-                              className={`block w-full border-b border-navy-950/5 px-4 py-3 text-left hover:bg-paper ${notification.readAt ? "opacity-60" : ""}`}
+                              className={`flex items-start justify-between gap-3 border-b border-navy-950/5 px-4 py-3 hover:bg-paper ${notification.readAt ? "opacity-60" : ""}`}
                             >
-                              <div className="flex gap-3">
+                              <div className="flex min-w-0 flex-1 items-start gap-3 text-left">
                                 <span
                                   className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${notification.readAt ? "bg-navy-950/15" : "bg-route"}`}
                                 />
@@ -212,7 +228,41 @@ export function Navbar() {
                                   </span>
                                 </span>
                               </div>
-                            </button>
+                              <div className="flex shrink-0 items-center gap-2">
+                                {!notification.readAt && (
+                                  <button
+                                    type="button"
+                                    title="Mark as read"
+                                    aria-label={`Mark ${notification.title} as read`}
+                                    onClick={() =>
+                                      void markNotificationRead(notification)
+                                    }
+                                    className="rounded p-1 text-ink-muted hover:bg-navy-950/5 hover:text-navy-950"
+                                  >
+                                    <CheckCheck
+                                      aria-hidden="true"
+                                      className="h-4 w-4"
+                                    />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  title="Delete notification"
+                                  aria-label={`Delete ${notification.title}`}
+                                  onClick={() =>
+                                    void deleteNotificationItem(
+                                      notification._id,
+                                    )
+                                  }
+                                  className="rounded p-1 text-ink-muted hover:bg-navy-950/5 hover:text-navy-950"
+                                >
+                                  <Trash2
+                                    aria-hidden="true"
+                                    className="h-4 w-4"
+                                  />
+                                </button>
+                              </div>
+                            </div>
                           ))
                         )}
                       </div>
