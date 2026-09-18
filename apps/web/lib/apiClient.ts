@@ -160,3 +160,35 @@ export const deliveryRequestApi = {
   adminProcess: (id: string, input: { estimatedDeliveryDate: string; rider: { name: string; phone: string; vehicle: string; registrationNumber: string } }) => apiClient.post<{ request: AdminDeliveryRequest }>(`/delivery-requests/admin/${id}/process`, input),
   adminDispatch: (id: string) => apiClient.post<{ request: AdminDeliveryRequest }>(`/delivery-requests/admin/${id}/dispatch`, {}),
 };
+
+export type PricingVehicleType = "MOTORBIKE" | "CAR" | "VAN" | "PICKUP" | "LIGHT_TRUCK" | "MEDIUM_TRUCK" | "HEAVY_TRUCK" | "FLATBED" | "SPECIALIZED";
+export type PricingCargoCategory = "STANDARD" | "BULK" | "HEAVY" | "OVERSIZED" | "SPECIAL_HANDLING";
+export interface PricingRouteInfo { distanceKm: number; durationMinutes?: number; route?: string; source?: "TRUSTED_INTERNAL" | "CLIENT_PROVIDED"; }
+export interface PricingBreakdownItem { code: string; name: string; amount: number; }
+export interface PricingResultPayload {
+  currency: string;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  additionalCharges: number;
+  total: number;
+  breakdown: PricingBreakdownItem[];
+  distanceKm: number;
+  estimatedDurationMinutes: number;
+  vehicleType: PricingVehicleType;
+  pricingVersion: string;
+  metadata: { estimateOnly: boolean; source: string; routeSource: string; notes: string[]; };
+  snapshot: { pricingVersion: string; currency: string; distanceKm: number; estimatedDurationMinutes: number; vehicleType: PricingVehicleType; ratesUsed: Record<string, number>; subtotal: number; discount: number; tax: number; total: number; breakdown: PricingBreakdownItem[]; };
+}
+
+export const pricingApi = {
+  calculate: (input: {
+    pickup: { country?: string; region?: string; city?: string; address?: string; latitude?: number; longitude?: number; locationNotes?: string };
+    destination: { country?: string; region?: string; city?: string; address?: string; latitude?: number; longitude?: number; locationNotes?: string };
+    cargo: Array<{ category: PricingCargoCategory; description: string; quantity: number; weight?: { value: number; unit: "kg" | "g" | "ton" }; dimensions?: { length: number; width: number; height: number; unit: "cm" | "m" | "ft" }; declaredValue?: { value: number; currency?: string } }>;
+    vehicleType: PricingVehicleType;
+    handlingRequirements?: { loadingAssistance?: boolean; unloadingAssistance?: boolean; fragile?: boolean; specialEquipmentRequired?: boolean; specialInstructions?: string };
+    routeInfo?: PricingRouteInfo;
+  }) => apiClient.post<{ pricing: PricingResultPayload; estimate: boolean; calculatedBy: string }>("/pricing/calculate", input),
+  config: () => apiClient.get<{ config: { version: string; currency: string; rates: Record<string, unknown> } }>("/pricing/config"),
+};

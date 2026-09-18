@@ -4,6 +4,7 @@ import authRoutes from "./auth.routes";
 import customerRoutes from "./customer.routes";
 import deliveryRequestRoutes from "./deliveryRequest.routes";
 import notificationRoutes from "./notification.routes";
+import pricingRoutes from "./pricing.routes";
 
 /**
  * All v1 routes are mounted here. As features are implemented, add:
@@ -20,5 +21,6 @@ router.use("/auth", authRoutes);
 router.use("/customers", customerRoutes);
 router.use("/delivery-requests", deliveryRequestRoutes);
 router.use("/notifications", notificationRoutes);
+router.use("/pricing", pricingRoutes);
 
 export default router;
